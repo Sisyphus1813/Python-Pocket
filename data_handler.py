@@ -10,6 +10,7 @@ with open("unlock_key.pkl", "rb") as f:
     key = f.read()
 fernet = Fernet(key)
 
+
 def save_accounts(accounts):
     try:
         data = pickle.dumps(accounts)
@@ -19,6 +20,7 @@ def save_accounts(accounts):
     except Exception:
         pass
 
+
 def save_categories(categories):
     try:
         data = pickle.dumps(categories)
@@ -27,6 +29,7 @@ def save_categories(categories):
             f.write(encrypted)
     except Exception:
         pass
+
 
 def load_accounts():
     try:
@@ -39,6 +42,7 @@ def load_accounts():
     except Exception:
         return {}
 
+
 def load_categories():
     try:
         with open("categories.pkl", "rb") as f:
@@ -50,8 +54,10 @@ def load_categories():
     except Exception:
         return []
 
+
 def hash_password(password):
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+
 
 def verify_password(password, hashed):
     return bcrypt.checkpw(password.encode(), hashed)
