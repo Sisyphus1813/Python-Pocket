@@ -6,6 +6,7 @@ from data_handler import (
     load_categories,
     hash_password,
     verify_password,
+    find_theme,
 )
 from data_classes import (
     Account,
@@ -76,8 +77,10 @@ class PasswordSetupPage(CTkFrame):
         hashed = hash_password(password1)
         with open("password.pkl", "wb") as f:
             pickle.dump(hashed, f)
-        self.error_label.configure(text="Password set. Returning to login...")
-        self.after(1500, self.master.change_page(HomePage))
+        self.error_label.configure(
+            text_color="green", text="Password set. Logging in..."
+        )
+        self.after(1500, lambda: self.master.change_page(HomePage))
 
 
 class HomePage(CTkFrame):
@@ -169,35 +172,41 @@ class AccountDetailsPage(CTkFrame):
         self.title.pack(pady=(30, 10))
         self.details_frame = CTkFrame(self, fg_color="transparent")
         self.details_frame.pack(pady=(5, 20))
-        columns = 3
-        fields = [
-            (key, value)
-            for key, value in vars(account).items()
-            if key not in {"transactions", "name"} and not key.startswith("_")
-        ]
+        columns = 6
+        fields = [("Account Balance", account.balance)]
         if isinstance(account, CreditAccount):
-            fields.append(("available_credit", account.available_credit))
-        for i, (key, value) in enumerate(fields):
+            fields.append(("Available Credit", account.available_credit))
+        fields += [
+            (key.replace("_", " ").title(), value)
+            for key, value in vars(account).items()
+            if key not in {"name", "transactions", "original_balance"}
+            and not key.startswith("_")
+        ]
+        for i, (label_key, value) in enumerate(fields):
             col = i % columns
             row = i // columns
-            label_key = key.replace("_", " ").title()
-            key_lower = key.lower()
             if isinstance(value, (int, float)):
-                if "apr" in key_lower or "apy" in key_lower:
+                if "apr" in label_key.lower() or "apy" in label_key.lower():
                     label_value = f"{value:.2f}%"
-                elif "date" in key_lower:
-                    label_value = str(value)
                 else:
                     label_value = f"${value:,.2f}"
+            elif label_key.lower() == "due date":
+                try:
+                    day = int(value)
+                    if 10 <= day % 100 <= 20:
+                        suffix = "th"
+                    else:
+                        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+                    label_value = f"{day}{suffix}"
+                except ValueError:
+                    label_value = str(value)
             else:
                 label_value = str(value).title()
             color = None
-            if label_key == "Balance":
+            if label_key.lower() == "account balance":
                 try:
-                    if float(label_value.replace("$", "").replace(",", "")) > 0:
-                        color = "green"
-                    else:
-                        color = "red"
+                    numeric_value = float(str(value).replace("$", "").replace(",", ""))
+                    color = "green" if numeric_value > 0 else "red"
                 except ValueError:
                     pass
             CTkLabel(
@@ -220,6 +229,7 @@ class AccountDetailsPage(CTkFrame):
             self.scroll_frame.pack(pady=(0, 5), anchor="s")
             self.bind("<Configure>", self.resize_scroll_frame)
             headers = [
+                "",
                 "Date",
                 "Type",
                 "Category",
@@ -232,30 +242,42 @@ class AccountDetailsPage(CTkFrame):
                     self.scroll_frame, text=header, font=("times", 18, "bold")
                 ).grid(row=0, column=col, padx=15, pady=5)
             for row, transaction in enumerate(account.transactions, start=1):
-                CTkLabel(self.scroll_frame, text=transaction.date).grid(
-                    row=row, column=0
+                CTkButton(
+                    self.scroll_frame,
+                    text="Edit",
+                    width=50,
+                    height=20,
+                    command=lambda t=transaction, a=account: self.master.change_page(
+                        lambda master: EditTransactionPage(master, t, a)
+                    ),
+                ).grid(row=row, column=0, padx=5, pady=2)
+                date_display = (
+                    transaction.date.strftime("%Y-%m-%d")
+                    if isinstance(transaction.date, (datetime.date, datetime.datetime))
+                    else str(transaction.date)
                 )
+                CTkLabel(self.scroll_frame, text=date_display).grid(row=row, column=1)
                 CTkLabel(self.scroll_frame, text=transaction.type).grid(
-                    row=row, column=1
+                    row=row, column=2
                 )
                 CTkLabel(self.scroll_frame, text=transaction.category).grid(
-                    row=row, column=2
+                    row=row, column=3
                 )
                 CTkLabel(
                     self.scroll_frame,
                     text=f"${transaction.amount:.2f}",
                     text_color="green" if transaction.type == "Deposit" else "red",
-                ).grid(row=row, column=3)
+                ).grid(row=row, column=4)
                 CTkLabel(
                     self.scroll_frame,
                     text=f"${transaction.beginning_balance:.2f}",
                     text_color="green" if transaction.beginning_balance > 0 else "red",
-                ).grid(row=row, column=4)
+                ).grid(row=row, column=5)
                 CTkLabel(
                     self.scroll_frame,
                     text=f"${transaction.ending_balance:.2f}",
                     text_color="green" if transaction.ending_balance > 0 else "red",
-                ).grid(row=row, column=5)
+                ).grid(row=row, column=6)
         self.back_button = CTkButton(
             self, text="Back", command=lambda: master.change_page(AccountsPage)
         )
@@ -330,7 +352,6 @@ class CreateAccountPage(CTkFrame):
             self.limit_frame.destroy()
         if hasattr(self, "due_date_frame"):
             self.due_date_frame.destroy()
-        vcmd = self.register(lambda val: val.replace(".", "", 1).isdigit() or val == "")
         prefix = "$" if account_type in ["Checking", "Savings", "Investment"] else "-$"
         color = "green" if prefix == "$" else "red"
         self.account_balance.configure(text_color=color)
@@ -463,8 +484,7 @@ class CreateAccountPage(CTkFrame):
     def open_calendar(self, event):
         def select_date():
             selected = cal.selection_get()
-            day_only_datetime = datetime(year=2025, month=1, day=selected.day)
-            self.date_entry_var.set(day_only_datetime.strftime("%Y-%m-%d"))
+            self.due_date_var.set(f"{selected.day:02d}")
             top.destroy()
 
         top = tkinter.Toplevel(self)
@@ -479,19 +499,23 @@ class CreateAccountPage(CTkFrame):
         account_name = self.account_name.get()
         account_balance = float(self.account_balance.get())
         account_type = self.account_type.get()
-        apy = float(self.apy.get()) if hasattr(self, "apy") and self.apy.get() else 0.0
-        apr = float(self.apr.get()) if hasattr(self, "apr") and self.apr.get() else 0.0
+        apy = (
+            float(self.apy.get()) if hasattr(self, "apy") and self.apy.get() else "None"
+        )
+        apr = (
+            float(self.apr.get()) if hasattr(self, "apr") and self.apr.get() else "None"
+        )
         compounding_frequency = (
             self.compounding_frequency.get()
             if hasattr(self, "compounding_frequency")
-            else "monthly"
+            else "None"
         )
         limit = (
             float(self.limit.get())
             if hasattr(self, "limit") and self.limit.get()
             else 0.0
         )
-        due_date = self.due_date.get() if hasattr(self, "due_date") else "01/01/1970"
+        due_date = self.due_date_var.get() if hasattr(self, "due_date") else "None"
         match account_type:
             case "Checking":
                 accounts[account_name] = CheckingAccount(
@@ -511,13 +535,11 @@ class CreateAccountPage(CTkFrame):
                 accounts[account_name] = InvestmentAccount(
                     name=account_name,
                     balance=account_balance,
-                    apy=apy,
-                    compounding_frequency=compounding_frequency,
                 )
             case "Credit":
                 accounts[account_name] = CreditAccount(
                     name=account_name,
-                    balance=-abs(account_balance),
+                    balance=-account_balance,
                     apr=apr,
                     limit=limit,
                     due_date=due_date,
@@ -525,7 +547,7 @@ class CreateAccountPage(CTkFrame):
             case "Loan":
                 accounts[account_name] = LoanAccount(
                     name=account_name,
-                    balance=-abs(account_balance),
+                    balance=-account_balance,
                     apr=apr,
                     compounding_frequency=compounding_frequency,
                     due_date=due_date,
@@ -651,16 +673,18 @@ class PostTransactionPage(CTkFrame):
         amount = float(self.transaction_amount.get())
         date = datetime.datetime.strptime(self.date_entry_var.get(), "%Y-%m-%d").date()
         beginning_amount = accounts[account].balance
-        match transaction_type:
-            case "Withdraw":
-                accounts[account].balance -= amount
-            case "Deposit":
-                accounts[account].balance += amount
-            case _:
-                pass
-        ending_amount = accounts[account].balance
+        ending_amount = (
+            accounts[account].balance + amount
+            if transaction_type == "Deposit"
+            else accounts[account].balance - amount
+        )
         transaction = Transaction(
-            category, transaction_type, amount, date, beginning_amount, ending_amount
+            category,
+            transaction_type,
+            amount if transaction_type == "Deposit" else -amount,
+            date,
+            beginning_amount,
+            ending_amount,
         )
         accounts[account].transactions.append(transaction)
         save_accounts(accounts)
@@ -672,6 +696,70 @@ class PostTransactionPage(CTkFrame):
         )
         self.notify.place(relx=0.5, rely=0.5)
         self.after(1000, lambda: self.master.change_page(PostTransactionPage))
+
+
+class EditTransactionPage(PostTransactionPage):
+    def __init__(self, master, transaction, account):
+        super().__init__(master)
+        self.transaction_type.set(transaction.type)
+        self.update_amount_prefix(transaction.type)
+        self.account.set(account.name)
+        self.category.set(transaction.category)
+        date_string = (
+            transaction.date.strftime("%Y-%m-%d")
+            if isinstance(transaction.date, (datetime.date, datetime.datetime))
+            else str(transaction.date)
+        )
+        self.date_entry_var.set(date_string)
+        self.transaction_amount.delete(0, "end")
+        self.transaction_amount.insert(0, f"{abs(transaction.amount):.2f}")
+        self.submit_button.configure(command=self.save_edited_transaction)
+        self.remove_button = CTkButton(
+            self,
+            text="Delete this transaction",
+            command=lambda: self.delete_transaction(account, transaction),
+        )
+        self.remove_button.pack()
+
+    def delete_transaction(self, account, transaction):
+        account.transactions.remove(transaction)
+        self.notify = CTkLabel(
+            self,
+            text="Deleting transaction...",
+            text_color="green",
+            font=("times", 25, "bold"),
+        )
+        self.notify.place(relx=0.5, rely=0.5)
+        self.after(1000, lambda: self.master.change_page(AccountsPage))
+
+    def save_edited_transaction(self, event=None):
+        edited_type = self.transaction_type.get()
+        edited_category = self.category.get()
+        edited_amount = float(self.transaction_amount.get())
+        edited_date = datetime.datetime.strptime(
+            self.date_entry_var.get(), "%Y-%m-%d"
+        ).date()
+        account_obj = accounts[account.name]
+        index = account_obj.transactions.index(transaction)
+        account_obj.transactions.pop(index)
+        beginning_balance = transaction.beginning_balance
+        if edited_type == "Deposit":
+            ending_balance = beginning_balance + edited_amount
+            adj_amount = edited_amount
+        else:
+            ending_balance = beginning_balance - edited_amount
+            adj_amount = -edited_amount
+        new_transaction = Transaction(
+            edited_category,
+            edited_type,
+            adj_amount,
+            edited_date,
+            beginning_balance,
+            ending_balance,
+        )
+        account_obj.transactions.insert(index, new_transaction)
+        save_accounts(accounts)
+        self.master.change_page(lambda master: AccountDetailsPage(master, account_obj))
 
 
 class CategoryPage(CTkFrame):
@@ -792,7 +880,6 @@ class StatisticsPage(CTkFrame):
         self.back_button = CTkButton(
             self, text="Back", command=lambda: master.change_page(HomePage)
         )
-        self.back_button.place(relx=0.05, rely=0.05, anchor="center")
 
 
 class App(CTk):
@@ -831,10 +918,9 @@ class App(CTk):
 
 
 if __name__ == "__main__":
-    if os.path.isfile("custom_theme.cfg"):
-        with open("custom_theme.cfg", "r") as f:
-            theme = f.read().strip().lower()
-            set_default_color_theme(theme)
+    theme = find_theme()
+    if theme:
+        set_default_color_theme(theme)
     categories = load_categories()
     accounts = load_accounts()
     app = App()

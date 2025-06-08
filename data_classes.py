@@ -2,8 +2,15 @@ class Account:
     def __init__(self, name, type, balance):
         self.name = name
         self.type = type
-        self.balance = balance
+        self.original_balance = balance
         self.transactions = []
+
+    @property
+    def balance(self):
+        return (
+            sum([transaction.amount for transaction in self.transactions])
+            + self.original_balance
+        )
 
 
 class CheckingAccount(Account):
@@ -21,9 +28,8 @@ class SavingsAccount(Account):
 
 
 class InvestmentAccount(Account):
-    def __init__(self, name, balance, apy, compounding_frequency):
+    def __init__(self, name, balance):
         super().__init__(name, "Investment", balance)
-        self.compounding_frequency = compounding_frequency
 
 
 class CreditAccount(Account):
@@ -54,3 +60,27 @@ class Transaction:
         self.date = date
         self.beginning_balance = beginning_balance
         self.ending_balance = ending_balance
+
+    def __eq__(self, other):
+        if not isinstance(other, Transaction):
+            return False
+        return (
+            self.category == other.category
+            and self.type == other.type
+            and self.amount == other.amount
+            and self.date == other.date
+            and self.beginning_balance == other.beginning_balance
+            and self.ending_balance == other.ending_balance
+        )
+
+    def __hash__(self):
+        return hash(
+            (
+                self.category,
+                self.type,
+                self.amount,
+                self.date,
+                self.beginning_balance,
+                self.ending_balance,
+            )
+        )

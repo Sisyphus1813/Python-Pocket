@@ -1,6 +1,6 @@
 [project]
 name = "python-pocket"
-version = "0.2.0"
+version = "0.2.5"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -8,5 +8,6 @@ dependencies = [
     "bcrypt>=4.3.0",
     "cryptography>=45.0.3",
     "customtkinter>=5.2.2",
+    "matplotlib>=3.10.3",
     "tkcalendar>=1.6.1",
 ]

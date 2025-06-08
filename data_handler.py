@@ -11,6 +11,15 @@ with open("unlock_key.pkl", "rb") as f:
 fernet = Fernet(key)
 
 
+def find_theme():
+    if os.path.isfile("custom_theme.cfg"):
+        with open("custom_theme.cfg", "r") as f:
+            theme = f.read().strip().lower()
+            return theme
+    else:
+        return None
+
+
 def save_accounts(accounts):
     try:
         data = pickle.dumps(accounts)
