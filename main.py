@@ -6,7 +6,8 @@ from data_handler import (
     load_categories,
     hash_password,
     verify_password,
-    find_theme,
+    find_ui_settings,
+    save_ui_settings,
 )
 from data_classes import (
     Account,
@@ -18,7 +19,10 @@ from data_classes import (
     Transaction,
 )
 from tkcalendar import Calendar
-import pickle, datetime, tkinter, time
+import pickle, datetime, tkinter, os, sys
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from collections import defaultdict
 
 
 class LoginPage(CTkFrame):
@@ -87,7 +91,7 @@ class HomePage(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
         self.main_label = CTkLabel(
-            self, text="Python Pocket", font=("times", 40, "bold")
+            self, text="Python Pocket", font=(font, MAIN_TITLE_SIZE, "bold")
         )
         self.main_label.place(relx=0.5, rely=0.1, anchor="center")
         self.accounts_button = CTkButton(
@@ -108,8 +112,12 @@ class AccountsPage(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
         load_accounts()
+        self.back_button = CTkButton(
+            self, text="Back", command=lambda: master.change_page(HomePage)
+        )
+        self.back_button.pack(anchor="w", padx=10, pady=10)
         self.accounts_label = CTkLabel(
-            self, text="Accounts", font=("times", 30, "bold")
+            self, text="Accounts", font=(font, MAIN_TITLE_SIZE, "bold")
         )
         self.accounts_label.pack(pady=(50, 10))
         self.create_account_button = CTkButton(
@@ -133,9 +141,9 @@ class AccountsPage(CTkFrame):
         self.accounts_panel = CTkFrame(self, fg_color="transparent")
         self.accounts_panel.pack(pady=(0, 10))
         for col, header in enumerate(["", "Name", "Account Type", "Balance"]):
-            CTkLabel(self.accounts_panel, text=header).grid(
-                row=0, column=col, padx=15, pady=20
-            )
+            CTkLabel(
+                self.accounts_panel, text=header, font=(font, SECTION_TITLE_SIZE)
+            ).grid(row=0, column=col, padx=15, pady=20)
         for row, (key, account) in enumerate(accounts.items(), start=1):
             CTkButton(
                 self.accounts_panel,
@@ -146,29 +154,34 @@ class AccountsPage(CTkFrame):
                     lambda master: AccountDetailsPage(master, account)
                 ),
             ).grid(row=row, column=0, padx=10, pady=10)
-            CTkLabel(self.accounts_panel, text=account.name).grid(
-                row=row, column=1, padx=15, pady=20
-            )
-            CTkLabel(self.accounts_panel, text=account.type).grid(
-                row=row, column=2, padx=15, pady=20
-            )
+            CTkLabel(
+                self.accounts_panel, text=account.name, font=(font, NORMAL_TEXT_SIZE)
+            ).grid(row=row, column=1, padx=15, pady=20)
+            CTkLabel(
+                self.accounts_panel, text=account.type, font=(font, NORMAL_TEXT_SIZE)
+            ).grid(row=row, column=2, padx=15, pady=20)
             balance_value = account.balance
             balance_text = f"${balance_value:,.2f}"
             balance_color = "green" if balance_value >= 0 else "red"
             CTkLabel(
-                self.accounts_panel, text=balance_text, text_color=balance_color
+                self.accounts_panel,
+                text=balance_text,
+                text_color=balance_color,
+                font=(font, NORMAL_TEXT_SIZE),
             ).grid(row=row, column=3, padx=15, pady=10)
-        self.back_button = CTkButton(
-            self, text="Back", command=lambda: master.change_page(HomePage)
-        )
-        self.back_button.place(relx=0.01, rely=0.05, anchor="w")
 
 
 class AccountDetailsPage(CTkFrame):
     def __init__(self, master, account):
         super().__init__(master)
+        self.back_button = CTkButton(
+            self, text="Back", command=lambda: master.change_page(AccountsPage)
+        )
+        self.back_button.pack(anchor="w", padx=10, pady=10)
         self.account = account
-        self.title = CTkLabel(self, text=f"{account.name}", font=("times", 30, "bold"))
+        self.title = CTkLabel(
+            self, text=f"{account.name}", font=(font, MAIN_TITLE_SIZE, "bold")
+        )
         self.title.pack(pady=(30, 10))
         self.details_frame = CTkFrame(self, fg_color="transparent")
         self.details_frame.pack(pady=(5, 20))
@@ -186,10 +199,7 @@ class AccountDetailsPage(CTkFrame):
             col = i % columns
             row = i // columns
             if isinstance(value, (int, float)):
-                if "apr" in label_key.lower() or "apy" in label_key.lower():
-                    label_value = f"{value:.2f}%"
-                else:
-                    label_value = f"${value:,.2f}"
+                label_value = f"${value:,.2f}"
             elif label_key.lower() == "due date":
                 try:
                     day = int(value)
@@ -210,19 +220,21 @@ class AccountDetailsPage(CTkFrame):
                 except ValueError:
                     pass
             CTkLabel(
-                self.details_frame, text=f"{label_key}:", font=("times", 16, "bold")
+                self.details_frame,
+                text=f"{label_key}:",
+                font=(font, SECTION_TITLE_SIZE, "bold"),
             ).grid(row=row * 2, column=col, sticky="w", padx=15, pady=(2, 0))
             CTkLabel(
                 self.details_frame,
                 text=label_value,
-                font=("times", 16),
+                font=(font, SECTION_TITLE_SIZE),
                 text_color=color,
             ).grid(row=row * 2 + 1, column=col, sticky="w", padx=15, pady=(0, 6))
         if not account.transactions:
             CTkLabel(self, text="No transactions found.").pack()
         else:
             self.transactions_label = CTkLabel(
-                self, text="Transactions", font=("times", 22, "bold")
+                self, text="Transactions", font=(font, NORMAL_TEXT_SIZE, "bold")
             )
             self.transactions_label.pack(pady=(0, 5))
             self.scroll_frame = CTkScrollableFrame(self, fg_color="transparent")
@@ -231,15 +243,15 @@ class AccountDetailsPage(CTkFrame):
             headers = [
                 "",
                 "Date",
-                "Type",
                 "Category",
-                "Amount",
+                "Type",
                 "Start Balance",
+                "Amount",
                 "End Balance",
             ]
             for col, header in enumerate(headers):
                 CTkLabel(
-                    self.scroll_frame, text=header, font=("times", 18, "bold")
+                    self.scroll_frame, text=header, font=(font, SMALL_TEXT_SIZE, "bold")
                 ).grid(row=0, column=col, padx=15, pady=5)
             for row, transaction in enumerate(account.transactions, start=1):
                 CTkButton(
@@ -250,38 +262,34 @@ class AccountDetailsPage(CTkFrame):
                     command=lambda t=transaction, a=account: self.master.change_page(
                         lambda master: EditTransactionPage(master, t, a)
                     ),
-                ).grid(row=row, column=0, padx=5, pady=2)
+                ).grid(row=row, column=0, padx=20, pady=2)
                 date_display = (
                     transaction.date.strftime("%Y-%m-%d")
                     if isinstance(transaction.date, (datetime.date, datetime.datetime))
                     else str(transaction.date)
                 )
                 CTkLabel(self.scroll_frame, text=date_display).grid(row=row, column=1)
-                CTkLabel(self.scroll_frame, text=transaction.type).grid(
-                    row=row, column=2
-                )
                 CTkLabel(self.scroll_frame, text=transaction.category).grid(
-                    row=row, column=3
+                    row=row, column=2, padx=20
                 )
-                CTkLabel(
-                    self.scroll_frame,
-                    text=f"${transaction.amount:.2f}",
-                    text_color="green" if transaction.type == "Deposit" else "red",
-                ).grid(row=row, column=4)
+                CTkLabel(self.scroll_frame, text=transaction.type).grid(
+                    row=row, column=3, padx=20
+                )
                 CTkLabel(
                     self.scroll_frame,
                     text=f"${transaction.beginning_balance:.2f}",
                     text_color="green" if transaction.beginning_balance > 0 else "red",
-                ).grid(row=row, column=5)
+                ).grid(row=row, column=4, padx=10)
+                CTkLabel(
+                    self.scroll_frame,
+                    text=f"${transaction.amount:.2f}",
+                    text_color="green" if transaction.type == "Deposit" else "red",
+                ).grid(row=row, column=5, padx=10)
                 CTkLabel(
                     self.scroll_frame,
                     text=f"${transaction.ending_balance:.2f}",
                     text_color="green" if transaction.ending_balance > 0 else "red",
-                ).grid(row=row, column=6)
-        self.back_button = CTkButton(
-            self, text="Back", command=lambda: master.change_page(AccountsPage)
-        )
-        self.back_button.place(relx=0.01, rely=0.05, anchor="w")
+                ).grid(row=row, column=6, padx=10)
 
     def resize_scroll_frame(self, event):
         target_width = int(event.width * 0.65)
@@ -292,8 +300,14 @@ class AccountDetailsPage(CTkFrame):
 class CreateAccountPage(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
+        self.back_button = CTkButton(
+            self, text="Back", command=lambda: master.change_page(AccountsPage)
+        )
+        self.back_button.pack(anchor="w", padx=10, pady=10)
         vcmd = self.register(lambda val: val.replace(".", "", 1).isdigit() or val == "")
-        self.main_label = CTkLabel(self, text="New Account", font=("times", 30, "bold"))
+        self.main_label = CTkLabel(
+            self, text="New Account", font=(font, SECTION_TITLE_SIZE, "bold")
+        )
         self.main_label.pack(pady=(50, 15))
         self.account_type_frame = CTkFrame(self, fg_color="transparent")
         self.account_type_frame.pack(pady=(0, 5), padx=(0, 165))
@@ -334,20 +348,10 @@ class CreateAccountPage(CTkFrame):
             self.submit_frame, text="Submit", command=self.initialize_account
         )
         self.submit_button.pack()
-        self.back_button = CTkButton(
-            self, text="Back", command=lambda: master.change_page(AccountsPage)
-        )
-        self.back_button.place(relx=0.01, rely=0.05, anchor="w")
 
     def update_page(self, account_type):
         if hasattr(self, "balance_prefix"):
             self.balance_prefix.destroy()
-        if hasattr(self, "apy_frame"):
-            self.apy_frame.destroy()
-        if hasattr(self, "compounding_freq_frame"):
-            self.compounding_freq_frame.destroy()
-        if hasattr(self, "apr_frame"):
-            self.apr_frame.destroy()
         if hasattr(self, "limit_frame"):
             self.limit_frame.destroy()
         if hasattr(self, "due_date_frame"):
@@ -364,61 +368,10 @@ class CreateAccountPage(CTkFrame):
             after=self.account_balance_label,
             before=self.account_balance,
         )
-        if self.account_type.get() in ["Checking", "Savings"]:
-            self.apy_frame = CTkFrame(self, fg_color="transparent")
-            self.apy_frame.pack(
-                after=self.account_balance_frame,
-                before=self.submit_frame,
-                pady=5,
-                padx=(0, 10),
-            )
-            self.apy_label = CTkLabel(self.apy_frame, text="APY: ")
-            self.apy_label.pack(side="left", padx=(0, 10))
-            self.apy = CTkEntry(self.apy_frame, placeholder_text="Enter %", width=300)
-            self.apy.pack(side="left")
-            self.compounding_freq_frame = CTkFrame(self, fg_color="transparent")
-            self.compounding_freq_frame.pack(
-                after=self.apy_frame, before=self.submit_frame, pady=5, padx=(0, 55)
-            )
-            self.compounding_freq_label = CTkLabel(
-                self.compounding_freq_frame, text="Compounding Frequency: "
-            )
-            self.compounding_freq_label.pack(side="left", padx=(0, 10))
-            self.compounding_freq = CTkOptionMenu(
-                self.compounding_freq_frame,
-                values=["Daily", "Monthly", "Quarterly", "Annually"],
-            )
-            self.compounding_freq.pack(side="left")
-            self.compounding_freq.set("Monthly")
-        elif self.account_type.get() == "Credit":
-            self.apr_frame = CTkFrame(self, fg_color="transparent")
-            self.apr_frame.pack(
-                after=self.account_balance_frame,
-                before=self.submit_frame,
-                pady=5,
-                padx=(0, 10),
-            )
-            self.apr_label = CTkLabel(self.apr_frame, text="APR: ")
-            self.apr_label.pack(side="left", padx=(0, 10))
-            self.apr = CTkEntry(self.apr_frame, placeholder_text="Enter %", width=300)
-            self.apr.pack(side="left")
-            self.compounding_freq_frame = CTkFrame(self, fg_color="transparent")
-            self.compounding_freq_frame.pack(
-                after=self.apr_frame, before=self.submit_frame, pady=5, padx=(0, 55)
-            )
-            self.compounding_freq_label = CTkLabel(
-                self.compounding_freq_frame, text="Compounding Frequency: "
-            )
-            self.compounding_freq_label.pack(side="left", padx=(0, 10))
-            self.compounding_freq = CTkOptionMenu(
-                self.compounding_freq_frame,
-                values=["Daily", "Monthly", "Quarterly", "Annually"],
-            )
-            self.compounding_freq.pack(side="left")
-            self.compounding_freq.set("Monthly")
+        if self.account_type.get() == "Credit":
             self.limit_frame = CTkFrame(self, fg_color="transparent")
             self.limit_frame.pack(
-                after=self.compounding_freq_frame,
+                after=self.account_balance_frame,
                 before=self.submit_frame,
                 pady=5,
                 padx=(25, 0),
@@ -440,34 +393,9 @@ class CreateAccountPage(CTkFrame):
             self.due_date.pack(side="left")
             self.due_date.bind("<Button-1>", self.open_calendar)
         elif self.account_type.get() == "Loan":
-            self.apr_frame = CTkFrame(self, fg_color="transparent")
-            self.apr_frame.pack(
-                after=self.account_balance_frame,
-                before=self.submit_frame,
-                pady=5,
-                padx=(0, 10),
-            )
-            self.apr_label = CTkLabel(self.apr_frame, text="APR: ")
-            self.apr_label.pack(side="left", padx=(0, 10))
-            self.apr = CTkEntry(self.apr_frame, placeholder_text="Enter %", width=300)
-            self.apr.pack(side="left")
-            self.compounding_freq_frame = CTkFrame(self, fg_color="transparent")
-            self.compounding_freq_frame.pack(
-                after=self.apr_frame, before=self.submit_frame, pady=5, padx=(0, 55)
-            )
-            self.compounding_freq_label = CTkLabel(
-                self.compounding_freq_frame, text="Compounding Frequency: "
-            )
-            self.compounding_freq_label.pack(side="left", padx=(0, 10))
-            self.compounding_freq = CTkOptionMenu(
-                self.compounding_freq_frame,
-                values=["Daily", "Monthly", "Quarterly", "Annually"],
-            )
-            self.compounding_freq.pack(side="left")
-            self.compounding_freq.set("Monthly")
             self.due_date_frame = CTkFrame(self, fg_color="transparent")
             self.due_date_frame.pack(
-                after=self.compounding_freq_frame,
+                after=self.account_balance_frame,
                 before=self.submit_frame,
                 pady=5,
                 padx=(5, 0),
@@ -499,37 +427,22 @@ class CreateAccountPage(CTkFrame):
         account_name = self.account_name.get()
         account_balance = float(self.account_balance.get())
         account_type = self.account_type.get()
-        apy = (
-            float(self.apy.get()) if hasattr(self, "apy") and self.apy.get() else "None"
-        )
-        apr = (
-            float(self.apr.get()) if hasattr(self, "apr") and self.apr.get() else "None"
-        )
-        compounding_frequency = (
-            self.compounding_frequency.get()
-            if hasattr(self, "compounding_frequency")
-            else "None"
-        )
         limit = (
             float(self.limit.get())
             if hasattr(self, "limit") and self.limit.get()
             else 0.0
         )
-        due_date = self.due_date_var.get() if hasattr(self, "due_date") else "None"
+        due_date = self.due_date_var.get() if hasattr(self, "due_date") else None
         match account_type:
             case "Checking":
                 accounts[account_name] = CheckingAccount(
                     name=account_name,
                     balance=account_balance,
-                    apy=apy,
-                    compounding_frequency=compounding_frequency,
                 )
             case "Savings":
                 accounts[account_name] = SavingsAccount(
                     name=account_name,
                     balance=account_balance,
-                    apy=apy,
-                    compounding_frequency=compounding_frequency,
                 )
             case "Investment":
                 accounts[account_name] = InvestmentAccount(
@@ -540,7 +453,6 @@ class CreateAccountPage(CTkFrame):
                 accounts[account_name] = CreditAccount(
                     name=account_name,
                     balance=-account_balance,
-                    apr=apr,
                     limit=limit,
                     due_date=due_date,
                 )
@@ -548,8 +460,6 @@ class CreateAccountPage(CTkFrame):
                 accounts[account_name] = LoanAccount(
                     name=account_name,
                     balance=-account_balance,
-                    apr=apr,
-                    compounding_frequency=compounding_frequency,
                     due_date=due_date,
                 )
             case _:
@@ -561,7 +471,7 @@ class CreateAccountPage(CTkFrame):
             self,
             text="Updating accounts...",
             text_color="green",
-            font=("times", 25, "bold"),
+            font=(font, NORMAL_TEXT_SIZE, "bold"),
         )
         self.notify.place(relx=0.5, rely=0.5)
         self.after(1000, lambda: self.master.change_page(CreateAccountPage))
@@ -570,8 +480,12 @@ class CreateAccountPage(CTkFrame):
 class PostTransactionPage(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
+        self.back_button = CTkButton(
+            self, text="Back", command=lambda: master.change_page(AccountsPage)
+        )
+        self.back_button.pack(anchor="w", padx=10, pady=10)
         self.main_label = CTkLabel(
-            self, text="New Transaction", font=("times", 30, "bold")
+            self, text="New Transaction", font=(font, SECTION_TITLE_SIZE, "bold")
         )
         self.main_label.pack(pady=(50, 15))
         vcmd = self.register(lambda val: val.replace(".", "", 1).isdigit() or val == "")
@@ -633,10 +547,6 @@ class PostTransactionPage(CTkFrame):
             self, text="Submit", command=self.post_transaction
         )
         self.submit_button.pack()
-        self.back_button = CTkButton(
-            self, text="Back", command=lambda: master.change_page(AccountsPage)
-        )
-        self.back_button.place(relx=0.05, rely=0.05, anchor="center")
 
     def update_amount_prefix(self, transaction_type):
         if hasattr(self, "amount_prefix"):
@@ -692,7 +602,7 @@ class PostTransactionPage(CTkFrame):
             self,
             text="Updating accounts...",
             text_color="green",
-            font=("times", 25, "bold"),
+            font=(font, NORMAL_TEXT_SIZE, "bold"),
         )
         self.notify.place(relx=0.5, rely=0.5)
         self.after(1000, lambda: self.master.change_page(PostTransactionPage))
@@ -701,6 +611,8 @@ class PostTransactionPage(CTkFrame):
 class EditTransactionPage(PostTransactionPage):
     def __init__(self, master, transaction, account):
         super().__init__(master)
+        self.transaction = transaction
+        self.account_obj = account
         self.transaction_type.set(transaction.type)
         self.update_amount_prefix(transaction.type)
         self.account.set(account.name)
@@ -727,7 +639,7 @@ class EditTransactionPage(PostTransactionPage):
             self,
             text="Deleting transaction...",
             text_color="green",
-            font=("times", 25, "bold"),
+            font=(font, NORMAL_TEXT_SIZE, "bold"),
         )
         self.notify.place(relx=0.5, rely=0.5)
         self.after(1000, lambda: self.master.change_page(AccountsPage))
@@ -739,10 +651,10 @@ class EditTransactionPage(PostTransactionPage):
         edited_date = datetime.datetime.strptime(
             self.date_entry_var.get(), "%Y-%m-%d"
         ).date()
-        account_obj = accounts[account.name]
-        index = account_obj.transactions.index(transaction)
+        account_obj = accounts[self.account.get()]
+        index = account_obj.transactions.index(self.transaction)
         account_obj.transactions.pop(index)
-        beginning_balance = transaction.beginning_balance
+        beginning_balance = self.transaction.beginning_balance
         if edited_type == "Deposit":
             ending_balance = beginning_balance + edited_amount
             adj_amount = edited_amount
@@ -765,14 +677,20 @@ class EditTransactionPage(PostTransactionPage):
 class CategoryPage(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
+        self.back_button = CTkButton(
+            self, text="Back", command=lambda: master.change_page(AccountsPage)
+        )
+        self.back_button.pack(anchor="w", padx=10, pady=10)
         self.categories_label = CTkLabel(
-            self, text="Categories", font=("times", 30, "bold")
+            self, text="Categories", font=(font, MAIN_TITLE_SIZE, "bold")
         )
         self.categories_label.pack(pady=(50, 10))
         self.categories_panel = CTkFrame(self)
         self.categories_panel.pack(pady=(0, 20))
         for row, category in enumerate(categories):
-            label = CTkLabel(self.categories_panel, text=category)
+            label = CTkLabel(
+                self.categories_panel, text=category, font=(font, NORMAL_TEXT_SIZE)
+            )
             label.grid(row=row, column=0, pady=15, padx=20)
         self.add_category_label = CTkLabel(
             self, text="Use the box below to enter a new category:"
@@ -781,10 +699,6 @@ class CategoryPage(CTkFrame):
         self.add_category_box = CTkEntry(self, placeholder_text="Enter Category here:")
         self.add_category_box.place(relx=0.2, rely=0.25, anchor="center")
         self.add_category_box.bind("<Return>", self.update)
-        self.back_button = CTkButton(
-            self, text="Back", command=lambda: master.change_page(AccountsPage)
-        )
-        self.back_button.place(relx=0.05, rely=0.05, anchor="center")
 
     def update(self, event=None):
         categories.append(self.add_category_box.get())
@@ -795,30 +709,67 @@ class CategoryPage(CTkFrame):
 class SettingsPage(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
-        self.main_label = CTkLabel(self, text="Settings", font=("times", 30, "bold"))
+        self.back_button = CTkButton(
+            self, text="Back", command=lambda: master.change_page(HomePage)
+        )
+        self.back_button.pack(anchor="w", padx=10, pady=10)
+        self.main_label = CTkLabel(
+            self, text="Settings", font=(font, MAIN_TITLE_SIZE, "bold")
+        )
         self.main_label.pack(pady=(15, 10))
         self.section_frame = CTkFrame(self, fg_color="transparent")
         self.section_frame.pack(pady=(10, 0), padx=250)
         self.theme_section = CTkFrame(self.section_frame, fg_color="transparent")
         self.theme_section.pack(side="left", padx=30, anchor="n")
         self.theme_label = CTkLabel(
-            self.theme_section, text="Theme", font=("times", 20, "bold")
+            self.theme_section, text="Theme", font=(font, SECTION_TITLE_SIZE, "bold")
         )
         self.theme_label.pack(anchor="w", pady=(0, 10))
         self.light_mode_button = CTkButton(
             self.theme_section,
             text="Light",
-            command=lambda: set_appearance_mode("light"),
+            command=lambda: (set_appearance_mode("light"), self.save_theme(
+                self.font_select_box.get().lower(),
+                self.accent_select_box.get(),
+                "light"
+            )),
         )
         self.light_mode_button.pack(pady=(0, 10), anchor="w")
         self.dark_mode_button = CTkButton(
-            self.theme_section, text="Dark", command=lambda: set_appearance_mode("dark")
+            self.theme_section,
+            text="Dark",
+            command=lambda: (set_appearance_mode("dark"), self.save_theme(
+                self.font_select_box.get().lower(),
+                self.accent_select_box.get(),
+                "dark"
+            )),
         )
         self.dark_mode_button.pack(pady=(0, 10), anchor="w")
+        self.font_section = CTkFrame(self.section_frame, fg_color="transparent")
+        self.font_section.pack(side="left", padx=30, anchor="n")
+        self.font_label = CTkLabel(
+            self.font_section, text="Font", font=(font, SECTION_TITLE_SIZE, "bold")
+        )
+        self.font_label.pack(anchor="w", pady=(0, 10))
+        self.font_select_box = CTkOptionMenu(
+            self.font_section,
+            values=[
+                "Arial",
+                "Helvetica",
+                "Times New Roman",
+                "Verdana",
+                "Calibri",
+                "Georgia",
+            ],
+            command=self.preview_font,
+        )
+        self.font_select_box.pack(anchor="w")
         self.accent_section = CTkFrame(self.section_frame, fg_color="transparent")
         self.accent_section.pack(side="left", padx=30, anchor="n")
         self.accent_label = CTkLabel(
-            self.accent_section, text="Accent Color", font=("times", 20, "bold")
+            self.accent_section,
+            text="Accent Color",
+            font=(font, SECTION_TITLE_SIZE, "bold"),
         )
         self.accent_label.pack(anchor="w", pady=(0, 10))
         self.accent_select_box = CTkOptionMenu(
@@ -828,15 +779,18 @@ class SettingsPage(CTkFrame):
         self.apply_button = CTkButton(
             self.accent_section,
             text="Apply",
-            command=lambda: self.change_theme(self.accent_select_box.get()),
+            command=lambda: self.save_theme_change(
+                self.font_select_box.get().lower(), self.accent_select_box.get(), get_appearance_mode()
+            ),
         )
         self.apply_button.pack(pady=(10, 20), anchor="w")
-        self.back_button = CTkButton(
-            self, text="Back", command=lambda: master.change_page(HomePage)
-        )
-        self.back_button.place(relx=0.05, rely=0.05, anchor="center")
 
-    def change_theme(self, theme):
+    def preview_font(self, font):
+        self.font_label.configure(font=(font, SECTION_TITLE_SIZE, "bold"))
+        self.font_select_box.configure(font=(font, NORMAL_TEXT_SIZE))
+
+    def save_theme_change(self, font, accent, theme):
+        close = True
         self.confirm_box = CTkFrame(self)
         self.confirm_box.pack(expand=True, pady=50, padx=50)
         content_frame = CTkFrame(
@@ -850,7 +804,7 @@ class SettingsPage(CTkFrame):
             content_frame,
             text="Updating the theme settings will require restarting the app.\n"
             "Press continue to close the app and then reopen it, or return to do this later.",
-            font=("times", 30, "bold"),
+            font=(font, NORMAL_TEXT_SIZE, "bold"),
             wraplength=int(self.winfo_width() * 0.7),
             justify="center",
         )
@@ -858,28 +812,186 @@ class SettingsPage(CTkFrame):
         button_frame = CTkFrame(content_frame)
         button_frame.pack(pady=10)
         CTkButton(
-            button_frame, text="Continue", command=lambda: self.save_theme_change(theme)
+            button_frame, text="Continue", command=lambda: self.save_theme(font, accent, theme, close)
         ).pack(side="left", padx=20)
         CTkButton(
             button_frame, text="Cancel", command=lambda: self.confirm_box.destroy()
         ).pack(side="right", padx=20)
 
-    def save_theme_change(self, theme):
-        with open("custom_theme.cfg", "w") as f:
-            f.write(theme)
-        sys.exit()
+    def save_theme(self, font, accent, theme, close=False):
+        save_ui_settings(font, accent, theme)
+        if close:
+            sys.exit()
 
 
 class StatisticsPage(CTkFrame):
     def __init__(self, master):
         super().__init__(master)
-        self.statistics_label = CTkLabel(self, text="Statistics")
-        self.statistics_label.place(relx=0.5, rely=0.23, anchor="center")
-        self.text = CTkLabel(self, text="More coming soon!")
-        self.text.place(relx=0.5, rely=0.5, anchor="center")
         self.back_button = CTkButton(
             self, text="Back", command=lambda: master.change_page(HomePage)
         )
+        self.back_button.pack(anchor="w", padx=10, pady=10)
+        self.main_label = CTkLabel(
+            self, text="Statistics", font=(font, MAIN_TITLE_SIZE, "bold")
+        )
+        self.main_label.pack(pady=(15, 10), padx=(160, 0))
+        self.chart_container = CTkFrame(self)
+        self.chart_container.pack(
+            side="right", fill="both", expand=True, padx=20, pady=20
+        )
+        self.views = CTkFrame(self, fg_color="transparent")
+        self.views.pack(side="left", pady=10)
+        self.expenses_button = CTkButton(
+            self.views, text="Expenses", command=self.show_expenses_chart
+        )
+        self.expenses_button.pack(side="top", pady=5, padx=10)
+        self.income_button = CTkButton(
+            self.views, text="Income", command=self.show_income_chart
+        )
+        self.income_button.pack(after=self.expenses_button, side="top", pady=5, padx=10)
+        self.chart_type_frame = CTkFrame(self.chart_container, fg_color="transparent")
+        self.chart_type_frame.pack(fill="x", pady=(0, 10))
+        self.button_container = CTkFrame(self.chart_type_frame, fg_color="transparent")
+        self.button_container.pack(expand=True)
+        self.pie_chart_button = CTkButton(
+            self.button_container, text="Pie Chart", command=self.show_pie_chart
+        )
+        self.pie_chart_button.pack(side="left", padx=5)
+        self.graph_chart_button = CTkButton(
+            self.button_container, text="Graph Chart", command=self.show_graph_chart
+        )
+        self.graph_chart_button.pack(side="left", padx=5)
+        self.current_data = None
+        self.current_title = None
+        self.current_figure = None
+        self.current_canvas = None
+        self.show_expenses_chart()
+
+    def clear_chart_container(self):
+        if self.current_figure:
+            plt.close(self.current_figure)
+        if self.current_canvas:
+            self.current_canvas.get_tk_widget().destroy()
+        for widget in self.chart_container.winfo_children():
+            if widget != self.chart_type_frame:
+                widget.destroy()
+
+    def create_pie_chart(self, data, title):
+        try:
+            self.clear_chart_container()
+            self.current_data = data
+            self.current_title = title
+            is_dark = get_appearance_mode().lower() == "dark"
+            bg_color = "black" if is_dark else "white"
+            text_color = "white" if is_dark else "black"
+            self.current_figure, ax = plt.subplots(figsize=(8, 6))
+            self.current_figure.patch.set_facecolor(bg_color)
+            ax.set_facecolor(bg_color)
+            wedges, texts, autotexts = ax.pie(
+                data.values(),
+                labels=data.keys(),
+                autopct="%1.1f%%",
+                textprops={"fontsize": 8, "color": text_color},
+            )
+            ax.set_title(title, pad=20, fontsize=14, color=text_color)
+            self.current_canvas = FigureCanvasTkAgg(
+                self.current_figure, master=self.chart_container
+            )
+            self.current_canvas.draw()
+            self.current_canvas.get_tk_widget().pack(fill="both", expand=True)
+        except Exception as e:
+            print(f"Error creating pie chart: {e}")
+
+    def create_graph_chart(self, data, title):
+        try:
+            self.clear_chart_container()
+            self.current_data = data
+            self.current_title = title
+            is_dark = get_appearance_mode().lower() == "dark"
+            bg_color = "black" if is_dark else "white"
+            text_color = "white" if is_dark else "black"
+            self.current_figure, ax = plt.subplots(figsize=(8, 6))
+            self.current_figure.patch.set_facecolor(bg_color)
+            ax.set_facecolor(bg_color)
+            categories = list(data.keys())
+            values = list(data.values())
+            bars = ax.bar(categories, values)
+            ax.set_title(title, pad=20, fontsize=14, color=text_color)
+            ax.set_xticks(range(len(categories)))
+            ax.set_xticklabels(categories, rotation=45, ha="right", color=text_color)
+            ax.tick_params(axis="y", colors=text_color)
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2.0,
+                    height,
+                    f"${height:,.2f}",
+                    ha="center",
+                    va="bottom",
+                    color=text_color,
+                )
+            plt.tight_layout()
+            self.current_canvas = FigureCanvasTkAgg(
+                self.current_figure, master=self.chart_container
+            )
+            self.current_canvas.draw()
+            self.current_canvas.get_tk_widget().pack(fill="both", expand=True)
+        except Exception as e:
+            print(f"Error creating graph chart: {e}")
+
+    def show_pie_chart(self):
+        if self.current_data and self.current_title:
+            self.create_pie_chart(self.current_data, self.current_title)
+
+    def show_graph_chart(self):
+        if self.current_data and self.current_title:
+            self.create_graph_chart(self.current_data, self.current_title)
+
+    def show_expenses_chart(self):
+        try:
+            expenses_by_category = defaultdict(float)
+            for account in accounts.values():
+                for transaction in account.transactions:
+                    if transaction.type == "Withdraw":
+                        expenses_by_category[transaction.category] += abs(
+                            transaction.amount
+                        )
+            if not expenses_by_category:
+                self.clear_chart_container()
+                CTkLabel(
+                    self.chart_container,
+                    text="No expense data available",
+                    font=(font, NORMAL_TEXT_SIZE),
+                ).pack(expand=True)
+                return
+            self.create_pie_chart(expenses_by_category, "Expenses by Category")
+        except Exception as e:
+            print(f"Error showing expenses chart: {e}")
+
+    def show_income_chart(self):
+        try:
+            income_by_category = defaultdict(float)
+            for account in accounts.values():
+                for transaction in account.transactions:
+                    if transaction.type == "Deposit":
+                        income_by_category[transaction.category] += transaction.amount
+            if not income_by_category:
+                self.clear_chart_container()
+                CTkLabel(
+                    self.chart_container,
+                    text="No income data available",
+                    font=(font, NORMAL_TEXT_SIZE),
+                ).pack(expand=True)
+                return
+            self.create_pie_chart(income_by_category, "Income by Category")
+        except Exception as e:
+            print(f"Error showing income chart: {e}")
+
+
+    def destroy(self):
+        if self.current_figure:
+            plt.close(self.current_figure)
+        super().destroy()
 
 
 class App(CTk):
@@ -888,8 +1000,6 @@ class App(CTk):
         self.geometry("1000x800")
         self.title("Python Pocket")
         self.protocol("WM_DELETE_WINDOW", self.on_exit)
-        self.login_page = LoginPage(self)
-        self.current_page = self.login_page
         if os.path.isfile("password.pkl"):
             self.login_page = LoginPage(self)
             self.current_page = self.login_page
@@ -917,10 +1027,17 @@ class App(CTk):
         self.destroy()
 
 
+MAIN_TITLE_SIZE = 28
+SECTION_TITLE_SIZE = 22
+NORMAL_TEXT_SIZE = 18
+SMALL_TEXT_SIZE = 16
+
 if __name__ == "__main__":
-    theme = find_theme()
+    font, accent, theme = find_ui_settings()
+    if accent:
+        set_default_color_theme(accent)
     if theme:
-        set_default_color_theme(theme)
+        set_appearance_mode(theme)
     categories = load_categories()
     accounts = load_accounts()
     app = App()

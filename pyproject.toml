@@ -1,7 +1,7 @@
 [project]
 name = "python-pocket"
-version = "0.2.5"
-description = "Add your description here"
+version = "0.3"
+description = "Python Pocket is a secure, lightweight, and extensible personal finance tracker built with `customtkinter`. It provides local encrypted storage, account management, transaction logging, and theming—all behind a password-protected interface."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

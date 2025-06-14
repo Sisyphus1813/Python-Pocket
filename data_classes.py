@@ -14,17 +14,13 @@ class Account:
 
 
 class CheckingAccount(Account):
-    def __init__(self, name, balance, apy, compounding_frequency):
+    def __init__(self, name, balance):
         super().__init__(name, "Checking", balance)
-        self.apy = apy
-        self.compounding_frequency = compounding_frequency
 
 
 class SavingsAccount(Account):
-    def __init__(self, name, balance, apy, compounding_frequency):
+    def __init__(self, name, balance):
         super().__init__(name, "Savings", balance)
-        self.apy = apy
-        self.compounding_frequency = compounding_frequency
 
 
 class InvestmentAccount(Account):
@@ -33,9 +29,8 @@ class InvestmentAccount(Account):
 
 
 class CreditAccount(Account):
-    def __init__(self, name, balance, apr, limit, due_date):
+    def __init__(self, name, balance, limit, due_date):
         super().__init__(name, "Credit", balance)
-        self.apr = apr
         self.limit = limit
         self.due_date = due_date
 
@@ -45,10 +40,8 @@ class CreditAccount(Account):
 
 
 class LoanAccount(Account):
-    def __init__(self, name, balance, apr, compounding_frequency, due_date):
+    def __init__(self, name, balance, due_date):
         super().__init__(name, "Loan", balance)
-        self.apr = apr
-        self.compounding_frequency = compounding_frequency
         self.due_date = due_date
 
 
