@@ -56,13 +56,16 @@ pip install customtkinter tkcalendar cryptography bcrypt matplotlib
 ### Installation
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/Python-Pocket.git
+git clone https://github.com/Sisyphus1813/Python-Pocket.git
 cd Python-Pocket
 ```
 
 2. Install dependencies:
 ```bash
-pip install -r requirements.txt
+# Install uv (fast Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install project dependencies from uv.lock and pyproject.toml
+uv install --system
 ```
 
 3. Run the application:
