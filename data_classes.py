@@ -4,6 +4,7 @@ class Account:
         self.type = type
         self.original_balance = balance
         self.transactions = []
+        self.repeating_transactions = []
 
     @property
     def balance(self):
@@ -46,7 +47,15 @@ class LoanAccount(Account):
 
 
 class Transaction:
-    def __init__(self, category, type, amount, date, beginning_balance, ending_balance):
+    def __init__(
+        self,
+        category,
+        type,
+        amount,
+        date,
+        beginning_balance=None,
+        ending_balance=None,
+    ):
         self.category = category
         self.type = type
         self.amount = amount
@@ -77,3 +86,10 @@ class Transaction:
                 self.ending_balance,
             )
         )
+
+
+class RecurringTransaction(Transaction):
+    def __init__(self, category, type, amount, date, schedule):
+        super().__init__(category, type, amount, date)
+        self.schedule = schedule
+        self.last_charged = None
