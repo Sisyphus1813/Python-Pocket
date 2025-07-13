@@ -47,11 +47,7 @@
 
 ### Requirements
 - Python 3.10 or higher
-- Windows OS (tested on Windows 10/11)
-- Required packages:
-```bash
-pip install customtkinter tkcalendar cryptography bcrypt matplotlib
-```
+- Works on most Linux distributions and Windows 10/11
 
 ### Installation
 1. Clone the repository:
@@ -62,10 +58,13 @@ cd Python-Pocket
 
 2. Install dependencies:
 ```bash
-# Install uv (fast Python package manager)
+pip install customtkinter tkcalendar cryptography bcrypt matplotlib
+```
+Alternatively use UV:
+```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-# Install project dependencies from uv.lock and pyproject.toml
-uv install --system
+uv venv
+uv sync
 ```
 
 3. Run the application:
