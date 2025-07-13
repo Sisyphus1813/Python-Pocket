@@ -491,6 +491,7 @@ class CreateAccountPage(CTkFrame):
             top.destroy()
 
         top = tkinter.Toplevel(self)
+        top.update_idletasks()
         top.grab_set()
         top.geometry("+%d+%d" % (event.x_root, event.y_root))
         cal = Calendar(top, selectmode="day", date_pattern="yyyy-mm-dd")
@@ -654,6 +655,7 @@ class PostTransactionPage(CTkFrame):
             top.destroy()
 
         top = tkinter.Toplevel(self)
+        top.update_idletasks()
         top.grab_set()
         top.geometry("+%d+%d" % (event.x_root, event.y_root))
         cal = Calendar(top, selectmode="day", date_pattern="yyyy-mm-dd")
