@@ -1,22 +1,30 @@
-import os, pickle, bcrypt
+import os, pickle, bcrypt, platform, getpass
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from cryptography.fernet import Fernet
 from data_classes import Transaction
+from pathlib import Path
 
-if not os.path.isdir(".local"):
-    os.mkdir(".local")
-if not os.path.isfile(".local/unlock_key.pkl"):
-    with open(".local/unlock_key.pkl", "wb") as f:
+platform = platform.system()
+user = getpass.getuser()
+match platform:
+    case "Windows":
+        local_dir = Path(os.environ["LOCALAPPDATA"]) / "python-pocket"
+    case "Linux":
+        local_dir = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "python-pocket"
+if not os.path.isdir(local_dir):
+    os.mkdirs(local_dir)
+if not os.path.isfile(f"{local_dir}/unlock_key.pkl"):
+    with open(f"{local_dir}/unlock_key.pkl", "wb") as f:
         f.write(Fernet.generate_key())
-with open(".local/unlock_key.pkl", "rb") as f:
+with open(f"{local_dir}/unlock_key.pkl", "rb") as f:
     key = f.read()
 fernet = Fernet(key)
 
 
 def load_ui_settings():
-    if os.path.isfile(".local/custom_ui.cfg"):
-        with open(".local/custom_ui.cfg", "r") as f:
+    if os.path.isfile(f"{local_dir}/custom_ui.cfg"):
+        with open(f"{local_dir}/custom_ui.cfg", "r") as f:
             settings = f.read().strip().split("\n")
             font = settings[0] if len(settings) > 0 else "times"
             accent = settings[1].lower() if len(settings) > 1 else "blue"
@@ -28,7 +36,7 @@ def load_ui_settings():
 
 def save_ui_settings(font, accent, theme):
     try:
-        with open(".local/custom_ui.cfg", "w") as f:
+        with open(f"{local_dir}/custom_ui.cfg", "w") as f:
             f.write(f"{font}\n{accent if accent else ''}\n{theme if theme else 'dark'}")
     except Exception:
         pass
@@ -38,7 +46,7 @@ def save_accounts(accounts):
     try:
         data = pickle.dumps(accounts)
         encrypted = fernet.encrypt(data)
-        with open(".local/accounts.pkl", "wb") as f:
+        with open(f"{local_dir}/accounts.pkl", "wb") as f:
             f.write(encrypted)
     except Exception:
         pass
@@ -48,7 +56,7 @@ def save_categories(categories):
     try:
         data = pickle.dumps(categories)
         encrypted = fernet.encrypt(data)
-        with open(".local/categories.pkl", "wb") as f:
+        with open(f"{local_dir}/categories.pkl", "wb") as f:
             f.write(encrypted)
     except Exception:
         pass
@@ -56,7 +64,7 @@ def save_categories(categories):
 
 def load_accounts():
     try:
-        with open(".local/accounts.pkl", "rb") as f:
+        with open(f"{local_dir}/accounts.pkl", "rb") as f:
             encrypted = f.read()
         data = fernet.decrypt(encrypted)
         return pickle.loads(data)
@@ -68,7 +76,7 @@ def load_accounts():
 
 def load_categories():
     try:
-        with open(".local/categories.pkl", "rb") as f:
+        with open(f"{local_dir}/categories.pkl", "rb") as f:
             encrypted = f.read()
         data = fernet.decrypt(encrypted)
         return pickle.loads(data)
