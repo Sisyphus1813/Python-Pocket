@@ -25,7 +25,17 @@ import pickle, datetime, tkinter, os, sys
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from collections import defaultdict
+from pathlib import Path
+import platform
+import getpass
 
+platform = platform.system()
+user = getpass.getuser()
+match platform:
+    case "Windows":
+        local_dir = Path(os.environ["LOCALAPPDATA"]) / "python-pocket"
+    case "Linux":
+        local_dir = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "python-pocket"
 
 class LoginPage(CTkFrame):
     def __init__(self, master):
@@ -43,7 +53,7 @@ class LoginPage(CTkFrame):
     def verify_password(self, event=None):
         entered_password = self.pass_input.get()
         try:
-            with open(".local/password.pkl", "rb") as f:
+            with open(".l/password.pkl", "rb") as f:
                 stored_hash = pickle.load(f)
         except FileNotFoundError:
             self.master.change_page(PasswordSetupPage)
@@ -81,7 +91,7 @@ class PasswordSetupPage(CTkFrame):
             self.error_label.configure(text="Password cannot be empty.")
             return
         hashed = hash_password(password1)
-        with open(".local/password.pkl", "wb") as f:
+        with open(f"{local_dir}/password.pkl", "wb") as f:
             pickle.dump(hashed, f)
         self.error_label.configure(
             text_color="green", text="Password set. Logging in..."
@@ -1191,7 +1201,7 @@ class App(CTk):
         self.title("Python Pocket")
         self.protocol("WM_DELETE_WINDOW", self.on_exit)
         self.previous_page = None
-        if os.path.isfile(".local/password.pkl"):
+        if os.path.isfile(f"{local_dir}/password.pkl"):
             self.login_page = LoginPage(self)
             self.current_page = self.login_page
             self.login_page.pack(fill="both", expand=True)

@@ -13,7 +13,7 @@ match platform:
     case "Linux":
         local_dir = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "python-pocket"
 if not os.path.isdir(local_dir):
-    os.mkdirs(local_dir)
+    os.makedirs(local_dir)
 if not os.path.isfile(f"{local_dir}/unlock_key.pkl"):
     with open(f"{local_dir}/unlock_key.pkl", "wb") as f:
         f.write(Fernet.generate_key())
